@@ -1,0 +1,62 @@
+## Generate Tables of the paper: effect of early cases (and some other guys)
+## By MW, GPLv3+, Oct. 2016
+
+##
+## ==== Load stuff
+##
+source("utilitaires.R")
+load("./climat/161028_climep.RData") ## climep
+load("./climat/161028_climep_lag.RData") ## climep.lag
+
+##
+## 1 ==== this model use 2014. It is flawed
+##
+summary(glm(seu ~ aot.den + precoces, family=binomial(link='logit'), climep[!is.na(climep$seu),]))
+
+##
+## 2 ==== This model addresses this issue. It is better
+##
+summary(glm(seu ~ aot.den + precoces, family=binomial(link='logit'), subset(climep[!is.na(climep$seu),], as.Date(date)<as.Date("2013-08-01"))))
+
+summary(glm(seu ~ aot.den + precoces, family=binomial(link='logit'), subset(climep[!is.na(climep$seu),], !(year %in% 2006) & as.Date(date)<as.Date("2013-08-01"))))
+
+
+## 2
+climep.save <- climep
+climep <- climep.lag[["-5"]]
+
+rat <- 5
+size <- sum(climep$seu, na.rm=T)
+
+episamp <-  subset(climep, climep$seu==1)
+nepisamp <- subset(climep, climep$seu==0)
+distr <- melt(table(episamp$week, episamp$year))
+distr <- distr[distr$value!=0,]
+names(distr) <- c('week', 'year', 'count')
+
+## Resample! (5 days lag)
+first <- TRUE
+for (i in 1:nrow(distr)) {
+    l <- distr[i,]
+    su <- subset(nepisamp, year==l$year & as.numeric(week)==l$week)
+    sa <- su[sample(1:nrow(su), l$count*rat),]
+    if (first) {
+        dres.df <- sa
+        first <- FALSE
+    } else {
+        dres.df <- rbind(dres.df, sa)
+    }
+}
+
+## Plot!
+ep <- list(epi=episamp$aot.den, nonepi=dres.df$aot.den)
+par(mfrow=c(3,1))
+boxplot(ep)
+hist(episamp$aot.den, breaks=50);hist(dres.df$aot.den, breaks=50)
+
+se <- 0.5
+
+summary(glm(seu ~ aot.den + precoces, family=binomial(link=logit), data=subset(rbind(episamp, dres.df), aot.den>se)))
+
+summary(glm(seu ~ aot.den + precoces, family=binomial(link=logit), data=subset(rbind(episamp, dres.df), aot.den>se)))
+climep <- climep.save
